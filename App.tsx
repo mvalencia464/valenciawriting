@@ -15,12 +15,13 @@ The dusty arena buzzed with excitement as the massive crowd waited for the start
 When the magistrate dropped the white cloth, the race began. Suddenly, a brave driver used his strong whip to encourage his steeds. He steered which chariot was fastest toward the narrow curve. One chariot crashed into the wall because the turn was too sharp. 
 
 In the end, the crowd cheered wildly for the victor. The brave driver raised his laurel crown to the sky. He had survived the dangerous Roman chariot race.`);
-  
+
   const [checklist, setChecklist] = useState<ChecklistItem[]>(INITIAL_CHECKLIST);
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>(AnalysisStatus.Idle);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const lastAnalyzedText = useRef<string>('');
   const analysisCount = useRef<number>(0);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   const totalPoints = useMemo(() => {
     let score = 0;
@@ -31,27 +32,42 @@ In the end, the crowd cheered wildly for the victor. The brave driver raised his
         score += item.points;
       }
     });
-    
+
     // Subtract points for banned words
     if (analysisResults?.bannedWordsFound) {
       score -= analysisResults.bannedWordsFound.length;
     }
-    
+
     return Math.max(score, 0);
   }, [checklist, analysisResults]);
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerText !== text) {
+      if (editorRef.current.innerText.trim() === '') {
+        editorRef.current.innerText = text;
+      }
+    }
+  }, []);
+
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      setText(editorRef.current.innerText);
+    }
+  }, []);
+
+  const handleFormat = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
   };
 
   const runAnalysis = useCallback(async (currentText: string) => {
     if (!currentText.trim() || currentText === lastAnalyzedText.current) return;
-    
+
     const currentRequestId = ++analysisCount.current;
     setAnalysisStatus(AnalysisStatus.Analyzing);
-    
+
     const results = await analyzeComposition(currentText);
-    
+
     // Only update if this is the most recent request
     if (currentRequestId === analysisCount.current) {
       if (results) {
@@ -81,7 +97,7 @@ In the end, the crowd cheered wildly for the victor. The brave driver raised his
     const timer = setTimeout(() => {
       runAnalysis(text);
     }, 2000); // 2 second debounce for real-time feel without overwhelming the API
-    
+
     return () => clearTimeout(timer);
   }, [text, runAnalysis]);
 
@@ -106,8 +122,12 @@ In the end, the crowd cheered wildly for the victor. The brave driver raised his
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {/* Editor Area */}
         <div className="flex-1 flex flex-col bg-white shadow-inner m-4 mr-0 rounded-3xl border overflow-hidden">
-          <Toolbar onCheck={() => runAnalysis(text)} isAnalyzing={analysisStatus === AnalysisStatus.Analyzing} />
-          
+          <Toolbar
+            onCheck={() => runAnalysis(text)}
+            isAnalyzing={analysisStatus === AnalysisStatus.Analyzing}
+            onFormat={handleFormat}
+          />
+
           <div className="flex-1 overflow-y-auto bg-slate-50/50 flex justify-center p-4 sm:p-8 lg:p-12">
             <div className="w-full max-w-4xl bg-white shadow-[0_0_50px_-12px_rgba(0,0,0,0.1)] rounded-sm min-h-full p-16 sm:p-24 relative">
               {/* Paper Background Lines (Subtle) */}
@@ -121,21 +141,26 @@ In the end, the crowd cheered wildly for the victor. The brave driver raised his
                 {analysisStatus === AnalysisStatus.Analyzing ? "Analyzing..." : "Live Sync"}
               </div>
 
-              <textarea
-                value={text}
-                onChange={handleTextChange}
-                placeholder="Start writing your composition here..."
-                className="w-full h-full resize-none outline-none prose-editor text-slate-800 placeholder:text-slate-300 bg-transparent relative z-0"
-                spellCheck={false}
-              />
+              <div
+                ref={editorRef}
+                contentEditable
+                onInput={handleInput}
+                className="w-full h-full outline-none prose-editor text-slate-800 placeholder:text-slate-300 bg-transparent relative z-0 min-h-[500px]"
+                suppressContentEditableWarning={true}
+              >
+                A Roman Chariot Race<br /><br />
+                The dusty arena buzzed with excitement as the massive crowd waited for the start. Four chariots stood poised at the white line. Because the horses were powerful, they strained against their leather harnesses.<br /><br />
+                When the magistrate dropped the white cloth, the race began. Suddenly, a brave driver used his strong whip to encourage his steeds. He steered which chariot was fastest toward the narrow curve. One chariot crashed into the wall because the turn was too sharp.<br /><br />
+                In the end, the crowd cheered wildly for the victor. The brave driver raised his laurel crown to the sky. He had survived the dangerous Roman chariot race.
+              </div>
             </div>
           </div>
         </div>
       </main>
 
       {/* Right Sidebar - Checklist */}
-      <ChecklistSidebar 
-        checklist={checklist} 
+      <ChecklistSidebar
+        checklist={checklist}
         analysis={analysisResults}
         totalPoints={totalPoints}
       />
